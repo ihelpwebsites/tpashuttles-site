@@ -1,7 +1,10 @@
-
+// Progressive enhancement only: every page works without this script.
+// 1) Mobile menu toggle. 2) Route finder: valid destinations only, swap, direct navigation.
 (function () {
   'use strict';
   window.tpaSite = true;
+
+  // ---- mobile menu ----------------------------------------------------------------------------
   var toggle = document.querySelector('.menu-toggle');
   var nav = document.getElementById('site-nav');
   if (toggle && nav) {
@@ -10,6 +13,8 @@
       toggle.setAttribute('aria-expanded', String(open));
       nav.classList.toggle('is-open', open);
       if (!open && focusToggle) toggle.focus();
+      // Opening moves focus into the menu, so Tab continues through its links (the button comes after the nav in the DOM).
+      if (open) { var first = nav.querySelector('a'); if (first) first.focus(); }
     };
     toggle.addEventListener('click', function () { setOpen(toggle.getAttribute('aria-expanded') !== 'true'); });
     document.addEventListener('keydown', function (e) {
@@ -18,10 +23,13 @@
     document.addEventListener('click', function (e) {
       if (toggle.getAttribute('aria-expanded') === 'true' && !nav.contains(e.target) && !toggle.contains(e.target)) setOpen(false);
     });
+    // Close when resizing to the desktop layout so the state never sticks.
     var mq = window.matchMedia('(min-width: 64rem)');
     var onMq = function () { if (mq.matches) setOpen(false); };
     if (mq.addEventListener) mq.addEventListener('change', onMq); else if (mq.addListener) mq.addListener(onMq);
   }
+
+  // ---- route finder ---------------------------------------------------------------------------
   var NAMES = {};
   Array.prototype.forEach.call(document.querySelectorAll('[data-route-finder]'), function (form) {
     var urls = JSON.parse(form.getAttribute('data-urls'));
@@ -30,7 +38,9 @@
     var to = form.querySelector('[data-rf-to]');
     var swap = form.querySelector('[data-rf-swap]');
     var error = form.querySelector('[data-rf-error]');
+
     Array.prototype.forEach.call(to.options, function (o) { NAMES[o.value] = o.textContent; });
+
     var clearError = function () {
       error.hidden = true;
       error.textContent = '';
@@ -42,6 +52,8 @@
       to.setAttribute('aria-invalid', 'true');
       to.focus();
     };
+
+    // Rebuild the destination list so it offers only supported destinations for the pickup airport.
     var fillDestinations = function (preferred) {
       var allowed = pairs[from.value] || [];
       var keep = allowed.indexOf(preferred) !== -1 ? preferred : allowed[0];
@@ -55,9 +67,24 @@
       });
       clearError();
     };
+
+    // "View route details" follows the selected direction.
+    var details = form.querySelector('[data-rf-details]');
+    var status = form.querySelector('[data-rf-status]');
+    var syncDetails = function () { var u = urls[from.value + '-' + to.value]; if (details && u) details.href = u; };
+
     fillDestinations(to.value);
-    from.addEventListener('change', function () { fillDestinations(to.value); });
-    to.addEventListener('change', clearError);
+    syncDetails();
+    from.addEventListener('change', function () { fillDestinations(to.value); syncDetails(); });
+    to.addEventListener('change', function () { clearError(); syncDetails(); });
+
+    // Dates: today onward (local time).
+    var date = form.querySelector('[data-rf-date]');
+    if (date) {
+      var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+      date.min = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
     if (swap) {
       swap.hidden = false;
       swap.addEventListener('click', function () {
@@ -66,15 +93,17 @@
         if (!urls[b + '-' + a]) return;
         from.value = b;
         fillDestinations(a);
-        swap.setAttribute('aria-label', 'Swap pickup and destination. Now ' + (NAMES[b] || b) + ' to ' + (NAMES[a] || a));
+        syncDetails();
+        // Announced through a polite live region; the button keeps a stable name.
+        if (status) status.textContent = 'Now ' + (NAMES[b] || b) + ' to ' + (NAMES[a] || a) + '.';
       });
     }
+
+    // Valid selections submit normally (GET /book/?from=&to=&date=&adults=).
     form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var key = from.value + '-' + to.value;
-      if (from.value === to.value) return showError('Choose a destination airport that is different from your pickup airport.');
-      if (!urls[key]) return showError('We don’t run a shuttle between those airports. Every route starts or ends at Tampa (TPA).');
-      window.location.href = urls[key];
+      if (from.value === to.value) { e.preventDefault(); return showError('Choose a destination airport that is different from your pickup airport.'); }
+      if (!urls[from.value + '-' + to.value]) { e.preventDefault(); return showError('We don’t run a shuttle between those airports. Every route starts or ends at Tampa (TPA).'); }
+      if (date && !date.value) date.removeAttribute('name');
     });
   });
 })();
