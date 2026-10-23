@@ -1,0 +1,4 @@
+# preview — not for indexing. Every page carries <meta name="robots" content="noindex, nofollow"> (and Vercel deployments also send X-Robots-Tag).
+# Crawling is allowed so crawlers can read the noindex directive. No sitemap is advertised.
+User-agent: *
+Allow: /
