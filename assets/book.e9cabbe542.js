@@ -123,6 +123,16 @@
   form.addEventListener('change', refresh);
   form.addEventListener('input', function () { save(); clearTimeout(timer); timer = setTimeout(summary, 150); });
 
+  // ---- small conveniences: flight numbers in capitals, US phone numbers formatted -----------------
+  $$('input[name$="Flight"]').forEach(function (i) {
+    i.addEventListener('input', function () { var p = i.selectionStart; i.value = i.value.toUpperCase(); try { i.setSelectionRange(p, p); } catch (e) { /* not a text input */ } });
+  });
+  form.elements.phone.addEventListener('blur', function () {
+    var d = this.value.replace(/\D/g, '');
+    if (d.length === 11 && d[0] === '1') d = d.slice(1);
+    if (d.length === 10) this.value = '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
+  });
+
   // ---- counters --------------------------------------------------------------------------------
   $$('.bk-stepper').forEach(function (s) {
     var input = s.querySelector('input');
@@ -331,5 +341,6 @@
   fillTo(el.to.value);   // destinations valid for the default pickup, even with nothing saved or prefilled
   restore();
   refresh();
+  clearTimeout(timer);   // refresh() scheduled a summary; render it once, now
   summary();
 })();
